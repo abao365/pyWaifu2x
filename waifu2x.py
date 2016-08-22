@@ -10,15 +10,29 @@ Python module to make POST requests to the waifu2x image enhancement API.
 import os
 import sys
 import requests
+from urllib.parse import urlparse
+from io import BytesIO
 from uuid import uuid4
+# TODO swap out uuid for orginal filename w/ options appended
 
 POST_URL = 'http://waifu2x.udp.jp/api'
 
-
+# http://www.clker.com/cliparts/m/Q/d/l/c/7/brown-square-hi.png
 def _get_file(img_loc):
-    # TODO handle image urls as well as local filepaths
     print('Getting image from [{}]...'.format(img_loc))
-    return {'file': open(img_loc, 'rb')}
+    if urlparse(img_loc).scheme.strip() != "":
+        r = requests.get(img_loc)
+        if r.status_code == 200:
+            # TODO detect if link is an image
+            file = BytesIO()
+            for chunk in r.iter_content(1024):
+                file.write(chunk)
+            file.seek(0)
+            return {'file': file.read()}
+        else:
+            sys.exit('bad source image url')  # TODO handle this without abort
+    else:
+        return {'file': open(img_loc, 'rb')}
 
 
 def _get_options(style, noise, scale):
@@ -34,6 +48,7 @@ def _get_options(style, noise, scale):
 # TODO support returning PIL objects in addition to local download
 # or just make local download a separate function
 # TODO allow customize local path to save to
+# TODO add option to stop output on all functions (for library output functionality)
 def process(img_loc, style='art', noise=3, scale=-1):
     # img_loc can be either a URL or a local filepath
     file = _get_file(img_loc)
