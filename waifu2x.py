@@ -36,13 +36,20 @@ def _get_file(img_loc):
 
 
 def _get_options(style, noise, scale):
-    '''
-    style: art, photo
-    noise: -1 for none, 0-3 for low, medium, high, highest
-    scale: -1 for none, 1 for 1.6x, 2 for 2x
-    '''
-    # validate options here
-    return {'style': style, 'noise': noise, 'scale': scale}
+    # style: either art or photo
+    style, noise, scale = style.lower(), int(noise), int(scale)
+    if style != 'photo':
+        style = 'art'
+    # noise: -1 for none, 0-3 for low, medium, high, highest
+    if noise not in range(-1, 4):
+        noise = -1
+    # scale: -1 for none, 1 for 1.6x, 2 for 2x
+    if scale not in (-1, 1, 2):
+        scale = -1
+    options = {'style': style, 'noise': noise, 'scale': scale}
+    for o in options:
+        print('{}: {}'.format(o, options[o]))
+    return options
 
 
 # TODO support returning PIL objects in addition to local download
