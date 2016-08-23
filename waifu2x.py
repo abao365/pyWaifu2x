@@ -29,12 +29,12 @@ def _get_file(img_loc):
                 file.write(chunk)
             file.seek(0)
             fn = os.path.splitext(os.path.basename(urlsplit(img_loc).path))[0]
-            return ({'file': file.read()}, fn)
+            return ({'file': file.read()}, fn, False)
         else:
             raise RuntimeError('URL access failure [{}].'.format(r.status_code))
     else:
         fn = os.path.splitext(os.path.basename(img_loc))[0]
-        return ({'file': open(img_loc, 'rb')}, fn)
+        return ({'file': open(img_loc, 'rb')}, fn, True)
 
 
 def _get_options(style, noise, scale):
@@ -58,7 +58,7 @@ def _get_options(style, noise, scale):
 def process_dl(img_loc, style='art', noise=3, scale=-1):
     # img_loc can be either a URL or a local filepath
     try:
-        file, name = _get_file(img_loc)
+        file, name, is_local_src = _get_file(img_loc)
     except RuntimeError as e:
         print("Error retrieving original image file: {}".format(e))
         return -1
@@ -68,7 +68,10 @@ def process_dl(img_loc, style='art', noise=3, scale=-1):
     if r.status_code == 200:
         print('Request successful. Downloading...')
         result_fn = ''.join((name, op_str, '.png'))
-        result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
+        if is_local_src:
+            result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
+        else:
+            result_dir = os.path.join(os.getcwd(), result_fn)
         total, progress = len(r.content), 0
         with open(result_dir, 'wb') as f:
             for chunk in r.iter_content(1024*64):
