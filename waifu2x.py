@@ -18,7 +18,8 @@ POST_URL = 'http://waifu2x.udp.jp/api'
 
 def _get_file(img_loc):
     print('Getting image from [{}]...'.format(img_loc))
-    if urlparse(img_loc).scheme.strip() != "":
+    u = urlparse(img_loc)
+    if u.scheme.strip() != "" and u.netloc.strip() != "":
         r = requests.get(img_loc)
         if r.status_code == 200:
             if not img_loc.lower().endswith(('.jpg', '.png')):
@@ -53,7 +54,6 @@ def _get_options(style, noise, scale):
         op_str += "_{}{}".format(o, options[o])
     return options, op_str
 
-# TODO save image to same local path
 # TODO add option to stop output on all functions (for library output functionality)
 def process_dl(img_loc, style='art', noise=3, scale=-1):
     # img_loc can be either a URL or a local filepath
@@ -68,13 +68,14 @@ def process_dl(img_loc, style='art', noise=3, scale=-1):
     if r.status_code == 200:
         print('Request successful. Downloading...')
         result_fn = ''.join((name, op_str, '.png'))
+        result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
         total, progress = len(r.content), 0
-        with open(result_fn, 'wb') as f:
+        with open(result_dir, 'wb') as f:
             for chunk in r.iter_content(1024*64):
                 f.write(chunk)
                 progress += len(chunk)
                 print('{} / {} bytes downloaded'.format(progress, total))
-        print('Download complete. Saved to {}'.format(os.path.join(os.getcwd(), result_fn)))
+        print('Download complete. Saved to {}'.format(result_dir))
     else:
         print(r.text)
 
