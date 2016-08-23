@@ -22,8 +22,6 @@ def _get_file(img_loc):
     if u.scheme.strip() != "" and u.netloc.strip() != "":
         r = requests.get(img_loc)
         if r.status_code == 200:
-            if not img_loc.lower().endswith(('.jpg', '.png')):
-                raise RuntimeError('URL does not link to a jpg/png image.')
             file = BytesIO()
             for chunk in r.iter_content(1024):
                 file.write(chunk)
