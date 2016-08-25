@@ -10,8 +10,9 @@ Python module to make POST requests to the waifu2x image enhancement API.
 import os
 import sys
 import requests
-from urllib.parse import urlparse, urlsplit
 from io import BytesIO
+from PIL import Image
+from urllib.parse import urlparse, urlsplit
 
 POST_URL = 'http://waifu2x.udp.jp/api'
 
@@ -53,7 +54,7 @@ def _get_options(style, noise, scale):
     return options, op_str
 
 # TODO add option to stop output on all functions (for library output functionality)
-def process_dl(img_loc, style='art', noise=3, scale=-1):
+def process(img_loc, mode='pil', style='art', noise=3, scale=-1):
     # img_loc can be either a URL or a local filepath
     try:
         file, name, is_local_src = _get_file(img_loc)
@@ -61,32 +62,34 @@ def process_dl(img_loc, style='art', noise=3, scale=-1):
         print("Error retrieving original image file: {}".format(e))
         return -1
     options, op_str = _get_options(style, noise, scale)
+
     print('Making request to waifu2x...')
     r = requests.post(POST_URL, files=file, data=options, stream=True)
     if r.status_code == 200:
-        print('Request successful. Downloading...')
-        result_fn = ''.join((name, op_str, '.png'))
-        if is_local_src:
-            result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
+        if mode.lower == 'dl':
+            print('Request successful. Downloading...')
+            result_fn = ''.join((name, op_str, '.png'))
+            if is_local_src:
+                result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
+            else:
+                result_dir = os.path.join(os.getcwd(), result_fn)
+            total, progress = len(r.content), 0
+            with open(result_dir, 'wb') as f:
+                for chunk in r.iter_content(1024*64):
+                    f.write(chunk)
+                    progress += len(chunk)
+                    print('{} / {} bytes downloaded'.format(progress, total))
+            print('Download complete. Saved to {}'.format(result_dir))
         else:
-            result_dir = os.path.join(os.getcwd(), result_fn)
-        total, progress = len(r.content), 0
-        with open(result_dir, 'wb') as f:
-            for chunk in r.iter_content(1024*64):
-                f.write(chunk)
-                progress += len(chunk)
-                print('{} / {} bytes downloaded'.format(progress, total))
-        print('Download complete. Saved to {}'.format(result_dir))
+            return Image.open(BytesIO(r.content)) # also return file name?
     else:
         print(r.text)
 
-# TODO support returning PIL objects in addition to local download
-def process_pil():
-    pass
 
 def main():
-    usage = '[image url/path] [style (art/photo)] [noise (-1 - 3)] [scale (-1, 1, 2)]'
-    process_dl(*tuple(input(usage + '\n').strip().split()))
+    usage = '[image url/path] [mode (dl/pil)] [style (art/photo)] [noise (-1 - 3)] [scale (-1, 1, 2)]'
+    img = process(*tuple(input(usage + '\n').strip().split()))
+    img.show()
     return 0
 
 if __name__ == "__main__":
