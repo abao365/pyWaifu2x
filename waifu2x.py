@@ -66,7 +66,7 @@ def process(img_loc, mode='pil', style='art', noise=3, scale=-1):
     print('Making request to waifu2x...')
     r = requests.post(POST_URL, files=file, data=options, stream=True)
     if r.status_code == 200:
-        if mode.lower == 'dl':
+        if mode.lower() == 'dl':
             print('Request successful. Downloading...')
             result_fn = ''.join((name, op_str, '.png'))
             if is_local_src:
@@ -80,16 +80,26 @@ def process(img_loc, mode='pil', style='art', noise=3, scale=-1):
                     progress += len(chunk)
                     print('{} / {} bytes downloaded'.format(progress, total))
             print('Download complete. Saved to {}'.format(result_dir))
+            return result_dir
         else:
             return Image.open(BytesIO(r.content)) # also return file name?
     else:
         print(r.text)
 
 
+def multi_process(img_loc, reps, mode='pil', style='art', noise=3, scale=-1):
+    d = img_loc
+    for i in range(1, int(reps)+1):
+        print("Enhancing ... {} of {} iterations".format(i, reps))
+        d = process(d, mode, style, noise, scale)
+    print("done")
+
+
 def main():
-    usage = '[image url/path] [mode (dl/pil)] [style (art/photo)] [noise (-1 - 3)] [scale (-1, 1, 2)]'
-    img = process(*tuple(input(usage + '\n').strip().split()))
-    img.show()
+    #usage = '[image url/path] [mode (dl/pil)] [style (art/photo)] [noise (-1 - 3)] [scale (-1, 1, 2)]'
+    #img = process(*tuple(input(usage + '\n').strip().split()))
+    #img.show()
+    multi_process(*tuple(input().strip().split()))
     return 0
 
 if __name__ == "__main__":
