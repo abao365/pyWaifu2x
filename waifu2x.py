@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 
 '''
-Python module to make POST requests to the waifu2x image enhancement API.
+Python module to enhance/smoothen/upscale images by automating the process
+of submitting POST requests to the waifu2x image enhancement API.
 
-> allow file queuing?
-> reddit bot integration?
+TODO:
+clean up all the code (really messy atm) before making reddit bot
+when finished, comment out all output statements
 '''
 
 import os
@@ -12,9 +14,9 @@ import sys
 import requests
 from io import BytesIO
 from PIL import Image
-from urllib.parse import urlparse, urlsplit
+from urllib.parse import urlparse
 
-POST_URL = 'http://waifu2x.udp.jp/api'
+API_URL = 'http://waifu2x.udp.jp/api'
 
 
 def _get_file(img_loc):
@@ -23,53 +25,47 @@ def _get_file(img_loc):
     if u.scheme.strip() != "" and u.netloc.strip() != "":
         r = requests.get(img_loc)
         if r.status_code == 200:
-            file = BytesIO()
+            file = BytesIO(r.content)
             for chunk in r.iter_content(1024):
                 file.write(chunk)
             file.seek(0)
-            fn = os.path.splitext(os.path.basename(urlsplit(img_loc).path))[0]
-            return ({'file': file.read()}, fn, False)
+            return {'file': file.read()}, False
         else:
-            raise RuntimeError('URL access failure [{}].'.format(r.status_code))
+            raise RuntimeError('URL access failure ({})'.format(r.status_code))
     else:
-        fn = os.path.splitext(os.path.basename(img_loc))[0]
-        return ({'file': open(img_loc, 'rb')}, fn, True)
+        return {'file': open(img_loc, 'rb')}, True
 
 
-def _get_options(style, noise, scale):
-    # style: either art or photo
+def process(img_loc, mode='pil', style='art', noise=-1, scale=0):
+    '''
+    Img_loc: Can be either a URL or a local filepath
+    Style: art / photo
+    Noise: -1 for none, 0-3 for low, medium, high, highest
+    Scale: 0 for none, 1 for 1.6x, 2 for 2x
+    '''
+    try:
+        file, is_stored_locally = _get_file(img_loc)
+    except RuntimeError as e:
+        print("Error retrieving original image: {}".format(e))
+        return -1
+    filename = os.path.splitext(os.path.basename(img_loc))[0]
+
     style, noise, scale = style.lower(), int(noise), int(scale)
-    if style != 'photo':
-        style = 'art'
-    # noise: -1 for none, 0-3 for low, medium, high, highest
-    if noise not in range(-1, 4):
-        noise = -1
-    # scale: -1 for none, 1 for 1.6x, 2 for 2x
-    if scale not in (-1, 1, 2):
-        scale = -1
+    assert(style in ('photo', 'art'))
+    assert(noise in range(-1, 4))
+    assert(scale in range(0, 3))
     options = {'style': style, 'noise': noise, 'scale': scale}
     op_str = "_waifu2x"
     for o in options:
         op_str += "_{}{}".format(o, options[o])
-    return options, op_str
-
-# TODO add option to stop output on all functions (for library output functionality)
-def process(img_loc, mode='pil', style='art', noise=3, scale=-1):
-    # img_loc can be either a URL or a local filepath
-    try:
-        file, name, is_local_src = _get_file(img_loc)
-    except RuntimeError as e:
-        print("Error retrieving original image file: {}".format(e))
-        return -1
-    options, op_str = _get_options(style, noise, scale)
 
     print('Making request to waifu2x...')
-    r = requests.post(POST_URL, files=file, data=options, stream=True)
+    r = requests.post(API_URL, files=file, data=options, stream=True)
     if r.status_code == 200:
         if mode.lower() == 'dl':
             print('Request successful. Downloading...')
-            result_fn = ''.join((name, op_str, '.png'))
-            if is_local_src:
+            result_fn = ''.join((filename, op_str, '.png'))
+            if is_stored_locally:
                 result_dir = os.path.join(os.path.dirname(img_loc), result_fn)
             else:
                 result_dir = os.path.join(os.getcwd(), result_fn)
@@ -82,24 +78,32 @@ def process(img_loc, mode='pil', style='art', noise=3, scale=-1):
             print('Download complete. Saved to {}'.format(result_dir))
             return result_dir
         else:
-            return Image.open(BytesIO(r.content)) # also return file name?
+            return Image.open(BytesIO(r.content))
     else:
         print(r.text)
+        print("Limits: Size (5MB), Noise Reduction (3000x3000px), Upscaling (1500x1500px)")
 
 
-def multi_process(img_loc, reps, mode='pil', style='art', noise=3, scale=-1):
-    d = img_loc
+def multi_process(img_loc, reps, mode='pil', style='art', noise=-1, scale=0):
+    # TODO make this work with PIL too
+    # download or can use bytestream passing directly?
+    # TODO enforce reps is 1 to 10
+    # better way to not repeat params...?
+    path = img_loc
     for i in range(1, int(reps)+1):
         print("Enhancing ... {} of {} iterations".format(i, reps))
-        d = process(d, mode, style, noise, scale)
-    print("done")
+        prev = path
+        path = process(path, mode, style, noise, scale)
+        if 1 < i < int(reps)+1:
+            print("Removing intermediate image...")
+            os.remove(prev)
 
 
 def main():
-    #usage = '[image url/path] [mode (dl/pil)] [style (art/photo)] [noise (-1 - 3)] [scale (-1, 1, 2)]'
-    #img = process(*tuple(input(usage + '\n').strip().split()))
-    #img.show()
-    multi_process(*tuple(input().strip().split()))
+    # TESTING CODE
+    usage = '[img url/path] [repeat (1-10)] [mode (dl/pil)] ' \
+            '[style (art/photo)] [noise (-1 to 3)] [scale (-1, 1, 2)]'
+    multi_process(*tuple(input(usage + '\n').strip().split()))
     return 0
 
 if __name__ == "__main__":
